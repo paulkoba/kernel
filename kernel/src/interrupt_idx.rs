@@ -16,7 +16,7 @@ pub enum InterruptIndex {
 }
 
 impl InterruptIndex {
-    pub(crate) fn as_u8(self) -> u8 {
+    pub fn as_u8(self) -> u8 {
         self as u8
     }
 }

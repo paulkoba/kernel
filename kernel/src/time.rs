@@ -1,7 +1,5 @@
-// pic tick count
 pub static mut PIT_TICK_COUNT: u64 = 0;
 
-// frequency of the PIC timer in Hz
 pub static mut PIT_COUNT: u64 = 0;
 pub static PIT_FREQUENCY: u64 = 1193182;
 
