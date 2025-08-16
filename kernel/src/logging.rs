@@ -1,4 +1,3 @@
-use core::arch::x86_64::_rdtsc;
 use crate::serial::SerialPort;
 
 use crate::time;
