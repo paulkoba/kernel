@@ -35,7 +35,7 @@ static mut ALLOCATOR: HeapAllocator = HeapAllocator::new(0, 0);
 
 const BOOTLOADER_CONFIG: bootloader_api::BootloaderConfig = {
     let mut config = bootloader_api::BootloaderConfig::new_default();
-    config.mappings.physical_memory = Some(Mapping::FixedAddress(0x0000_0001_0000_0000));
+    config.mappings.physical_memory = Some(Mapping::FixedAddress(memory::PHYSICAL_MEMORY_OFFSET));
     config
 };
 
@@ -74,14 +74,15 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
         let mut offset_page_table = memory::init(VirtAddr::new(memory_offset));
 
         init_heap(
-            0x0000_0000_7000_0000,
+            memory::HEAP_START,
             1024 * 1024,
             &mut offset_page_table,
             &mut frame_allocator,
         )
         .expect("Failed to initialize heap");
+
         unsafe {
-            ALLOCATOR = HeapAllocator::new(0x0000_0000_7000_0000, 1024 * 1024);
+            ALLOCATOR = HeapAllocator::new(memory::HEAP_START, 1024 * 1024);
         }
     } else {
         klog!(Fatal, "Didn't receive paging info from the bootloader.");

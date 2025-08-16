@@ -6,6 +6,10 @@ use x86_64::structures::paging::{
 };
 use x86_64::{PhysAddr, VirtAddr};
 
+pub const PHYSICAL_MEMORY_OFFSET: u64 = 0x0000_1000_0000_0000;
+pub const HEAP_START: usize = 0x0000_2000_0000_0000;
+pub const USERSPACE_START: usize = 0x0000_3000_0000_0000;
+
 fn active_level_4_table(physical_memory_offset: VirtAddr) -> &'static mut PageTable {
     use x86_64::registers::control::Cr3;
 

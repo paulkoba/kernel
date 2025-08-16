@@ -5,4 +5,5 @@ cargo run -p builder --release
 
 qemu-system-x86_64 \
     -drive format=raw,file=boot.img \
-    -serial stdio
+    -serial stdio \
+    -m 2G
