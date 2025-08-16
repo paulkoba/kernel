@@ -7,6 +7,8 @@ use core::fmt::Write;
 use crate::{klog, logging};
 use crate::interrupt_idx::InterruptIndex;
 use crate::interrupts::PICS;
+use crate::time;
+
 static mut IDT: InterruptDescriptorTable = InterruptDescriptorTable::new();
 
 pub fn init_idt() {
@@ -51,7 +53,10 @@ extern "x86-interrupt" fn double_fault_handler(_stack_frame: InterruptStackFrame
 extern "x86-interrupt" fn timer_interrupt_handler(
     _stack_frame: InterruptStackFrame)
 {
-    klog!(Debug, ".");
+    unsafe {
+        time::PIT_TICK_COUNT += 1;
+    }
+
     #[allow(static_mut_refs)]
     unsafe {
         PICS.notify_end_of_interrupt(InterruptIndex::Timer.as_u8());

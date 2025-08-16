@@ -1,3 +1,4 @@
+// makes clion error highlighting sad otherwise :-(
 #[cfg(not(test))]
 use core::panic::PanicInfo;
 

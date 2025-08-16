@@ -13,6 +13,7 @@ mod memory;
 mod panic;
 mod interrupts;
 mod interrupt_idx;
+mod time;
 
 use crate::logging::{set_log_level, LogLevel};
 use crate::serial::SerialPort;
@@ -33,6 +34,9 @@ fn kernel_main(_boot_info: &'static mut BootInfo) -> ! {
     }
 
     klog!(Debug, "Serial port test.");
+
+    time::set_pit_tick_count(0);
+    klog!(Debug, "PIT frequency set to {}", time::get_pit_frequency());
 
     gdt::init_tss();
     gdt::init_gdt();

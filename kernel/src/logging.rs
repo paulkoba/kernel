@@ -1,6 +1,8 @@
 use core::arch::x86_64::_rdtsc;
 use crate::serial::SerialPort;
 
+use crate::time;
+
 pub static mut PORT: SerialPort = SerialPort::new(0x3F8);
 pub static mut KERNEL_LOG_LEVEL: LogLevel = LogLevel::Debug;
 
@@ -15,10 +17,8 @@ pub enum LogLevel {
     Debug = 5,
 }
 
-pub fn log_timestamp() -> u64 {
-    unsafe {
-        _rdtsc()
-    }
+pub fn log_timestamp() -> f32 {
+    time::time_since_boot()
 }
 
 #[macro_export]
@@ -38,7 +38,7 @@ macro_rules! klog {
             #[allow(static_mut_refs)]
             unsafe {
                 if log_level <= logging::KERNEL_LOG_LEVEL {
-                    writeln!(logging::PORT, "[{}] {}", logging::log_timestamp(), format_args!($($arg)*)).expect("Failed to write to PORT");
+                    writeln!(logging::PORT, "[{:.6}] {}", logging::log_timestamp(), format_args!($($arg)*)).expect("Failed to write to PORT");
                 }
             }
         }
