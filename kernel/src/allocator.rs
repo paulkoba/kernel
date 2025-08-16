@@ -3,6 +3,7 @@ use core::cell::UnsafeCell;
 use core::ptr::null_mut;
 
 pub struct HeapAllocator {
+    #[allow(dead_code)]
     heap_start: usize,
     heap_end: usize,
     current: UnsafeCell<usize>,

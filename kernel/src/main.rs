@@ -3,13 +3,11 @@
 #![feature(abi_x86_interrupt)]
 extern crate alloc;
 
-use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 use bootloader_api::config::Mapping;
 use bootloader_api::{entry_point, BootInfo};
 use core::fmt::Write;
-use x86_64::structures::paging::{FrameAllocator, Translate};
 use x86_64::VirtAddr;
 
 mod allocator;
@@ -57,13 +55,15 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     klog!(Debug, "PIT frequency set to {}", time::get_pit_frequency());
 
     gdt::init_tss();
+    klog!(Debug, "Initialized TSS.");
     gdt::init_gdt();
+    klog!(Debug, "Initialized GDT.");
     idt::init_idt();
+    klog!(Debug, "Initialized IDT.");
     interrupts::init_interrupts();
+    klog!(Debug, "Initialized PIC interrupts.");
 
     x86_64::instructions::interrupts::int3();
-
-    klog!(Debug, "Hello from the kernel!");
 
     if let Some(memory_offset) = boot_info.physical_memory_offset.into_option() {
         klog!(
@@ -89,7 +89,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
         hcf::hcf();
     }
 
-    let string: String = format!("Initialized {}", "allocator.");
+    let string: String = format!("Initialized {}.", "allocator");
     klog!(Debug, "{}", string);
 
     hcf::hcf();
