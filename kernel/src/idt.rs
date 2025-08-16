@@ -1,13 +1,15 @@
 use crate::LogLevel;
 use core::mem;
-use x86_64::structures::idt::{DivergingHandlerFuncWithErrCode, InterruptDescriptorTable, PageFaultErrorCode};
 use x86_64::structures::idt::InterruptStackFrame;
+use x86_64::structures::idt::{
+    DivergingHandlerFuncWithErrCode, InterruptDescriptorTable, PageFaultErrorCode,
+};
 
-use core::fmt::Write;
-use crate::{klog, logging};
 use crate::interrupt_idx::InterruptIndex;
 use crate::interrupts::PICS;
 use crate::time;
+use crate::{klog, logging};
+use core::fmt::Write;
 
 static mut IDT: InterruptDescriptorTable = InterruptDescriptorTable::new();
 
@@ -29,30 +31,31 @@ pub fn init_idt() {
     }
 }
 
-extern "x86-interrupt" fn breakpoint_handler(_stack_frame: InterruptStackFrame)
-{
+extern "x86-interrupt" fn breakpoint_handler(_stack_frame: InterruptStackFrame) {
     klog!(Info, "Breakpoint.");
 }
 
-extern "x86-interrupt" fn page_fault(_stack_frame: InterruptStackFrame, page_fault_error_code: PageFaultErrorCode)
-{
-    klog!(Error, "Page fault. Error code: {}", page_fault_error_code.bits());
+extern "x86-interrupt" fn page_fault(
+    _stack_frame: InterruptStackFrame,
+    page_fault_error_code: PageFaultErrorCode,
+) {
+    klog!(
+        Error,
+        "Page fault. Error code: {}",
+        page_fault_error_code.bits()
+    );
 }
 
-extern "x86-interrupt" fn invalid_tss(_stack_frame: InterruptStackFrame, error_code: u64)
-{
+extern "x86-interrupt" fn invalid_tss(_stack_frame: InterruptStackFrame, error_code: u64) {
     klog!(Error, "Invalid TSS. Error code: {}", error_code);
 }
 
-extern "x86-interrupt" fn double_fault_handler(_stack_frame: InterruptStackFrame, error_code: u64)
-{
+extern "x86-interrupt" fn double_fault_handler(_stack_frame: InterruptStackFrame, error_code: u64) {
     klog!(Error, "Double fault. Error code: {}", error_code);
     loop {}
 }
 
-extern "x86-interrupt" fn timer_interrupt_handler(
-    _stack_frame: InterruptStackFrame)
-{
+extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
     unsafe {
         time::PIT_TICK_COUNT += 1;
     }
@@ -63,9 +66,7 @@ extern "x86-interrupt" fn timer_interrupt_handler(
     }
 }
 
-extern "x86-interrupt" fn keyboard_interrupt_handler(
-    _stack_frame: InterruptStackFrame)
-{
+extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStackFrame) {
     use x86_64::instructions::port::Port;
     let mut port = Port::new(0x60);
     let scancode: u8 = unsafe { port.read() };

@@ -1,9 +1,9 @@
 use x86_64::instructions::segmentation::CS;
 use x86_64::instructions::tables::load_tss;
 use x86_64::registers::segmentation::{Segment, SS};
-use x86_64::VirtAddr;
-use x86_64::structures::gdt::{GlobalDescriptorTable, Descriptor, SegmentSelector};
+use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector};
 use x86_64::structures::tss::TaskStateSegment;
+use x86_64::VirtAddr;
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 
@@ -49,6 +49,6 @@ pub fn init_gdt() -> () {
 
         CS::set_reg(code_selector);
         load_tss(tss_selector);
-        SS::set_reg(SegmentSelector{0: 0});
+        SS::set_reg(SegmentSelector { 0: 0 });
     }
 }

@@ -2,17 +2,17 @@
 #![no_main]
 #![feature(abi_x86_interrupt)]
 
-use core::fmt::Write;
 use bootloader_api::{entry_point, BootInfo};
+use core::fmt::Write;
 
 mod gdt;
 mod idt;
-mod serial;
+mod interrupt_idx;
+mod interrupts;
 mod logging;
 mod memory;
 mod panic;
-mod interrupts;
-mod interrupt_idx;
+mod serial;
 mod time;
 
 use crate::logging::{set_log_level, LogLevel};
