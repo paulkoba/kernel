@@ -11,6 +11,7 @@ use core::fmt::Write;
 use x86_64::VirtAddr;
 
 mod allocator;
+mod cpuid;
 mod freestanding;
 mod gdt;
 mod hcf;
@@ -61,7 +62,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     idt::init_idt();
     klog!(Debug, "Initialized IDT.");
     interrupts::init_interrupts();
-    klog!(Debug, "Initialized PIC interrupts.");
+    klog!(Debug, "Initialized PIC.");
 
     x86_64::instructions::interrupts::int3();
 
@@ -92,5 +93,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     let string: String = format!("Initialized {}.", "allocator");
     klog!(Debug, "{}", string);
 
+    let cpu_info = cpuid::analyze_cpuid();
+    cpuid::log_cpuid_full(&cpu_info);
     hcf::hcf();
 }
