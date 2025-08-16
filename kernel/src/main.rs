@@ -10,6 +10,7 @@ mod idt;
 mod serial;
 mod logging;
 mod memory;
+mod panic;
 
 use crate::logging::{set_log_level, LogLevel};
 use crate::logging::LogLevel::Debug;
@@ -28,7 +29,7 @@ fn kernel_main(_boot_info: &'static mut BootInfo) -> ! {
     if port.exists() {
         port.init();
     }
-    
+
     klog!(Debug, "Serial port test.");
 
     gdt::init_tss();
@@ -39,10 +40,5 @@ fn kernel_main(_boot_info: &'static mut BootInfo) -> ! {
 
     klog!(Debug, "Hello from the kernel!");
 
-    loop {}
-}
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
     loop {}
 }
