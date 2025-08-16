@@ -5,6 +5,7 @@
 use bootloader_api::config::Mapping;
 use bootloader_api::{entry_point, BootInfo};
 use core::fmt::Write;
+use x86_64::structures::paging::{Mapper, Translate};
 use x86_64::{PhysAddr, VirtAddr};
 
 mod freestanding;
@@ -20,7 +21,6 @@ mod serial;
 mod time;
 
 use crate::logging::{set_log_level, LogLevel};
-use crate::memory::{active_level_4_table, translate_addr_inner};
 use crate::serial::SerialPort;
 
 const BOOTLOADER_CONFIG: bootloader_api::BootloaderConfig = {
@@ -59,31 +59,16 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
             "Physical memory offset: {:?}",
             VirtAddr::new(boot_info.physical_memory_offset.into_option().unwrap())
         );
-        let phys_mem_offset = VirtAddr::new(memory_offset);
-        let l4_table = unsafe { active_level_4_table(phys_mem_offset) };
-
-        for (i, entry) in l4_table.iter().enumerate() {
-            if !entry.is_unused() {
-                klog!(Info, "L4 Entry {}: {:?}", i, entry);
-            }
-        }
+        let offset_page_table = memory::init(VirtAddr::new(memory_offset));
+        klog!(
+            Debug,
+            "{:?}",
+            offset_page_table.translate_addr(VirtAddr::new(0x0000_0001_0000_0123))
+        );
     } else {
         klog!(Fatal, "Didn't receive paging info from the bootloader.");
         hcf::hcf();
     }
-
-    klog!(
-        Debug,
-        "Translation test: address 0x0000_0001_0000_0123 translates to {:?}",
-        PhysAddr::new(
-            translate_addr_inner(
-                VirtAddr::new(0x0000_0001_0000_0123),
-                VirtAddr::new(boot_info.physical_memory_offset.into_option().unwrap())
-            )
-            .unwrap_or(PhysAddr::new(42))
-            .as_u64()
-        )
-    );
 
     hcf::hcf();
 }
