@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 bootloader_api = "0.11"
 x86_64 = "0.15.2"
+pic8259 = "0.10.1"
