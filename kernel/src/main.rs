@@ -25,6 +25,7 @@ mod serial;
 mod time;
 
 use crate::allocator::HeapAllocator;
+use crate::cpuid::CpuFeatureEcx;
 use crate::logging::{set_log_level, LogLevel};
 use crate::memory::{init_heap, BootInfoFrameAllocator};
 use crate::serial::SerialPort;
