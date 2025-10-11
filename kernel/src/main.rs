@@ -25,6 +25,7 @@ mod memory;
 mod panic;
 mod serial;
 mod syscall;
+mod task;
 mod time;
 mod userspace;
 
@@ -33,6 +34,7 @@ use crate::cpuid::CpuFeatureEcx;
 use crate::logging::{set_log_level, LogLevel};
 use crate::memory::{init_heap, BootInfoFrameAllocator};
 use crate::serial::SerialPort;
+use crate::syscall::configure_syscalls;
 use crate::userspace::jump_userspace;
 
 #[global_allocator]
@@ -112,5 +114,6 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     let string: String = format!("Initialized {}.", "allocator");
     klog!(Debug, "{}", string);
 
+    configure_syscalls();
     jump_userspace(&mut offset_page_table, &mut frame_allocator);
 }

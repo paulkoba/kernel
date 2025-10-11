@@ -85,7 +85,8 @@ pub fn jump_userspace(
 
 #[no_mangle]
 pub extern "C" fn test_userspace_routine() {
-    static MSG: &[u8] = b"Hello, World!\n";
+    static MSG_2: &[u8] = b"Userspace code running!\n";
+    static MSG: &[u8] = b"Hello, World! Test........\n";
 
     unsafe {
         asm!(
@@ -94,15 +95,16 @@ pub extern "C" fn test_userspace_routine() {
         "mov rsi, {msg_ptr}",
         "mov rdx, {msg_len}",
         "syscall",
-        "mov rax, 42",
-        "mov rdi, 43",
-        "mov rsi, {msg_ptr}",
-        "mov rdx, {msg_len}",
+        "mov rax, 1",
+        "mov rsi, {msg2_ptr}",
+        "mov rdx, {msg2_len}",
         "syscall",
         "2:",
         "jmp 2b",
         msg_ptr = in(reg) MSG.as_ptr(),
         msg_len = in(reg) MSG.len(),
+        msg2_ptr = in(reg) MSG_2.as_ptr(),
+        msg2_len = in(reg) MSG_2.len(),
         options(nomem, nostack)
         );
     }
