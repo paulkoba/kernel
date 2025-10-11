@@ -47,6 +47,12 @@ pub fn init_tss() -> () {
         stack_end
     };
 
+    const KERNEL_STACK_SIZE: usize = 4096 * 5;
+    static mut KERNEL_STACK: [u8; KERNEL_STACK_SIZE] = [0; KERNEL_STACK_SIZE];
+    let kernel_stack_start = VirtAddr::from_ptr(&raw const KERNEL_STACK);
+    let kernel_stack_end = kernel_stack_start + KERNEL_STACK_SIZE as u64;
+    tss.privilege_stack_table[0] = kernel_stack_end;
+
     unsafe {
         TSS = tss;
     }

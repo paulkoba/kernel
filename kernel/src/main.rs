@@ -24,6 +24,7 @@ mod logging;
 mod memory;
 mod panic;
 mod serial;
+mod syscall;
 mod time;
 mod userspace;
 

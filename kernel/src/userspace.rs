@@ -1,25 +1,8 @@
 use crate::gdt::SELECTORS;
-use crate::instructions::{rdmsr, wrmsr, EFER, FMASK, KERNEL_GS_BASE, LSTAR, STAR};
-use crate::{klog, logging, LogLevel};
+use crate::syscall;
 use core::arch::asm;
-use core::fmt::Write;
 use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB};
 use x86_64::VirtAddr;
-unsafe fn configure_syscalls() {
-    let syscall_handler_addr = syscall_handler as *const () as u64;
-    let efer = rdmsr(EFER);
-
-    let syscall_cs_ss_base = (SELECTORS.kernel_code_selector.0 & 0xFFFC) as u32;
-    let sysret_cs_ss_base = (SELECTORS.user_code_selector.0 & 0xFFFC) as u32;
-
-    let star_high = (syscall_cs_ss_base) | (sysret_cs_ss_base << 16);
-
-    wrmsr(STAR, (star_high as u64) << 32);
-    wrmsr(LSTAR, syscall_handler_addr);
-    wrmsr(FMASK, 0x0300);
-    wrmsr(EFER, efer | 0x1);
-    wrmsr(KERNEL_GS_BASE, SELECTORS.tss_selector.0 as u64);
-}
 
 pub fn jump_userspace(
     mapper: &mut impl Mapper<Size4KiB>,
@@ -72,7 +55,7 @@ pub fn jump_userspace(
     unsafe {
         core::ptr::copy_nonoverlapping(test_userspace_routine as *const _, userspace_fn, fn_size);
 
-        configure_syscalls();
+        syscall::configure_syscalls();
     }
 
     let user_stack_pointer = user_stack_page.start_address().as_u64() + 4096 - 2048;
@@ -80,17 +63,11 @@ pub fn jump_userspace(
     unsafe {
         asm!(
         "cli",
-        "mov rax, {user_ds}",
-        "mov ds, ax",
-        "mov es, ax",
-        "mov fs, ax",
-        "mov gs, ax",
-
         "push {user_ds}",
         "push {user_sp}",
         "pushfq",
         "pop rax",
-        //"or rax, 0x200",
+        "or rax, 0x200",
         "push rax",
         "push {user_cs}",
         "push {user_rip}",
@@ -108,21 +85,26 @@ pub fn jump_userspace(
 
 #[no_mangle]
 pub extern "C" fn test_userspace_routine() {
+    static MSG: &[u8] = b"Hello, World!\n";
+
     unsafe {
         asm!(
-            "mov rax, 0xdeadbeef",
-            "2:",
-            "jmp 2b",
-            options(nomem, nostack)
+        "mov rax, 1",
+        "mov rdi, 1",
+        "mov rsi, {msg_ptr}",
+        "mov rdx, {msg_len}",
+        "syscall",
+        "mov rax, 42",
+        "mov rdi, 43",
+        "mov rsi, {msg_ptr}",
+        "mov rdx, {msg_len}",
+        "syscall",
+        "2:",
+        "jmp 2b",
+        msg_ptr = in(reg) MSG.as_ptr(),
+        msg_len = in(reg) MSG.len(),
+        options(nomem, nostack)
         );
     }
     loop {}
-}
-
-#[no_mangle]
-pub extern "C" fn syscall_handler() {
-    klog!(Debug, "Syscall handler.");
-    unsafe {
-        asm!("sysretq", options(noreturn));
-    }
 }
