@@ -8,6 +8,8 @@ use alloc::string::String;
 use bootloader_api::config::Mapping;
 use bootloader_api::{entry_point, BootInfo};
 use core::fmt::Write;
+use core::mem::{zeroed, MaybeUninit};
+use x86_64::structures::paging::{OffsetPageTable, PageTable};
 use x86_64::VirtAddr;
 
 mod allocator;
@@ -16,6 +18,7 @@ mod freestanding;
 mod gdt;
 mod hcf;
 mod idt;
+mod instructions;
 mod interrupt_idx;
 mod interrupts;
 mod logging;
@@ -23,12 +26,15 @@ mod memory;
 mod panic;
 mod serial;
 mod time;
+mod userspace;
 
 use crate::allocator::HeapAllocator;
 use crate::cpuid::CpuFeatureEcx;
+use crate::logging::LogLevel::Off;
 use crate::logging::{set_log_level, LogLevel};
 use crate::memory::{init_heap, BootInfoFrameAllocator};
 use crate::serial::SerialPort;
+use crate::userspace::jump_userspace;
 
 #[global_allocator]
 static mut ALLOCATOR: HeapAllocator = HeapAllocator::new(0, 0);
@@ -53,6 +59,22 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
     klog!(Debug, "Serial port test.");
 
+    let cpu_info = cpuid::analyze_cpuid();
+    cpuid::log_cpuid_full(&cpu_info);
+
+    if !cpu_info.has_feature_ecx(CpuFeatureEcx::Sse42)
+        || !cpu_info.has_feature_ecx(CpuFeatureEcx::Popcnt)
+    {
+        klog!(Fatal, "Unsupported CPU.");
+        hcf::hcf();
+    }
+
+    if instructions::nx_enabled() {
+        klog!(Debug, "NX bit enabled.");
+    } else {
+        klog!(Fatal, "NX bit not enabled.");
+    }
+
     time::set_pit_tick_count(0);
     klog!(Debug, "PIT frequency set to {}", time::get_pit_frequency());
 
@@ -67,13 +89,10 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
     x86_64::instructions::interrupts::int3();
 
+    let mut offset_page_table: OffsetPageTable;
+
     if let Some(memory_offset) = boot_info.physical_memory_offset.into_option() {
-        klog!(
-            Debug,
-            "Physical memory offset: {:p}",
-            boot_info.physical_memory_offset.into_option().unwrap() as *mut u8
-        );
-        let mut offset_page_table = memory::init(VirtAddr::new(memory_offset));
+        offset_page_table = memory::init(VirtAddr::new(memory_offset));
 
         init_heap(
             memory::HEAP_START,
@@ -94,7 +113,5 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     let string: String = format!("Initialized {}.", "allocator");
     klog!(Debug, "{}", string);
 
-    let cpu_info = cpuid::analyze_cpuid();
-    cpuid::log_cpuid_full(&cpu_info);
-    hcf::hcf();
+    jump_userspace(&mut offset_page_table, &mut frame_allocator);
 }

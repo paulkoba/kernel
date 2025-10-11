@@ -15,6 +15,8 @@ pub struct CpuInfo {
     pub threads_per_core: u32,
 }
 
+#[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 pub enum CpuFeatureEcx {
     Sse3 = 1 << 0,
     Pclmul = 1 << 1,
@@ -49,6 +51,8 @@ pub enum CpuFeatureEcx {
     Hypervisor = 1 << 31,
 }
 
+#[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 pub enum CpuFeatureEdx {
     Fpu = 1 << 0,
     Vme = 1 << 1,
@@ -87,6 +91,7 @@ impl CpuInfo {
         (self.features_ecx & (feature as u32)) != 0
     }
 
+    #[allow(dead_code)]
     pub fn has_feature_edx(&self, feature: CpuFeatureEdx) -> bool {
         (self.features_edx & (feature as u32)) != 0
     }
