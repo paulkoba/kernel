@@ -11,7 +11,6 @@ pub const GDT_USER_CODE32: usize = 2;
 pub const GDT_USER_DATA: usize = 3;
 pub const GDT_USER_CODE: usize = 4;
 pub const GDT_TSS: usize = 5;
-pub const GDT_TSS_HIGH: usize = 6;
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 

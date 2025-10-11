@@ -8,8 +8,7 @@ use alloc::string::String;
 use bootloader_api::config::Mapping;
 use bootloader_api::{entry_point, BootInfo};
 use core::fmt::Write;
-use core::mem::{zeroed, MaybeUninit};
-use x86_64::structures::paging::{OffsetPageTable, PageTable};
+use x86_64::structures::paging::OffsetPageTable;
 use x86_64::VirtAddr;
 
 mod allocator;
@@ -30,7 +29,6 @@ mod userspace;
 
 use crate::allocator::HeapAllocator;
 use crate::cpuid::CpuFeatureEcx;
-use crate::logging::LogLevel::Off;
 use crate::logging::{set_log_level, LogLevel};
 use crate::memory::{init_heap, BootInfoFrameAllocator};
 use crate::serial::SerialPort;

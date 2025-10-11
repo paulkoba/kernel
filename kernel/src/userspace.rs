@@ -10,7 +10,7 @@ unsafe fn configure_syscalls() {
     let efer = rdmsr(EFER);
 
     let syscall_cs_ss_base = (SELECTORS.kernel_code_selector.0 & 0xFFFC) as u32;
-    let sysret_cs_ss_base = ((SELECTORS.user_code_selector.0 & 0xFFFC) as u32);
+    let sysret_cs_ss_base = (SELECTORS.user_code_selector.0 & 0xFFFC) as u32;
 
     let star_high = (syscall_cs_ss_base) | (sysret_cs_ss_base << 16);
 
@@ -96,11 +96,10 @@ pub fn jump_userspace(
         "push {user_rip}",
         "iretq",
 
-        user_ds = in(reg) SELECTORS.user_data_selector.0,
-        user_cs = in(reg) SELECTORS.user_code_selector.0,
+        user_ds = in(reg) SELECTORS.user_data_selector.0 as u64,
+        user_cs = in(reg) SELECTORS.user_code_selector.0 as u64,
         user_sp = in(reg) user_stack_pointer,
         user_rip = in(reg) user_code_start.as_u64(),
-        options(noreturn)
         );
     }
 
