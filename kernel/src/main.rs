@@ -10,7 +10,6 @@ use alloc::string::String;
 use bootloader_api::config::Mapping;
 use bootloader_api::{entry_point, BootInfo};
 use core::fmt::Write;
-use task::Task;
 use x86_64::structures::paging::OffsetPageTable;
 use x86_64::VirtAddr;
 
@@ -40,7 +39,7 @@ use crate::memory::{
 };
 use crate::serial::SerialPort;
 use crate::syscall::configure_syscalls;
-use crate::task::set_current_task;
+use crate::task::{create_task, set_current_pid, Task};
 use crate::userspace::jump_userspace;
 
 #[global_allocator]
@@ -123,13 +122,11 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     klog!(Debug, "{}", string);
 
     configure_syscalls();
-    set_current_task(Task::new(
-        1,
-        &mut frame_allocator,
-        offset_page_table.phys_offset(),
-    ));
-    let task = task::get_current_task();
+    let pid = create_task(0, &mut frame_allocator, offset_page_table.phys_offset());
+    set_current_pid(pid);
+    let task: &mut Task = task::get_current_task().expect("Failed to get current task");
     switch_to_user_page_table(&mut task.page_table);
+
     jump_userspace(&mut frame_allocator, task);
 
     hcf::hcf();

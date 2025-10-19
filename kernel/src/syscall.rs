@@ -1,6 +1,6 @@
 use crate::gdt::SELECTORS;
 use crate::instructions::{rdmsr, wrmsr, EFER, FMASK, KERNEL_GS_BASE, LSTAR, STAR};
-use crate::task::{get_current_task, TrapFrame};
+use crate::task::{get_current_task, getpid, getppid, TrapFrame};
 use crate::{klog, logging, LogLevel};
 use core::arch::naked_asm;
 use core::fmt::Write;
@@ -112,7 +112,7 @@ pub unsafe extern "C" fn syscall_handler() {
 
 #[no_mangle]
 extern "C" fn syscall_dispatch(frame: &mut TrapFrame) -> u64 {
-    let task = get_current_task();
+    let task = get_current_task().expect("Failed to get current task");
 
     task.trap_frame = frame as *mut TrapFrame;
 
@@ -120,6 +120,7 @@ extern "C" fn syscall_dispatch(frame: &mut TrapFrame) -> u64 {
         1 => sys_write(frame.rdi, frame.rsi, frame.rdx),
         39 => sys_getpid(),
         60 => sys_exit(frame.rdi),
+        110 => sys_getppid(),
         _ => u64::MAX,
     };
 
@@ -144,9 +145,15 @@ fn sys_write(fd: u64, buf: u64, count: u64) -> u64 {
 }
 
 fn sys_getpid() -> u64 {
-    let task = get_current_task();
-    klog!(Debug, "sys_getpid called, returning pid={}", task.pid);
-    task.pid
+    let pid = getpid();
+    klog!(Debug, "sys_getpid called, returning pid={}", pid);
+    pid
+}
+
+fn sys_getppid() -> u64 {
+    let ppid = getppid();
+    klog!(Debug, "sys_getppid called, returning ppid={}", ppid);
+    ppid
 }
 
 fn sys_exit(code: u64) -> u64 {
