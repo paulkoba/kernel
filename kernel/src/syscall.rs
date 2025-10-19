@@ -115,6 +115,8 @@ extern "C" fn syscall_dispatch(frame: &mut TrapFrame) -> u64 {
     klog!(Debug, "{:?}", frame);
     let result = match frame.rax {
         1 => sys_write(frame.rdi, frame.rsi, frame.rdx),
+        39 => sys_getpid(),
+        60 => sys_exit(frame.rdi),
         _ => u64::MAX,
     };
 
@@ -134,4 +136,13 @@ fn sys_write(fd: u64, buf: u64, count: u64) -> u64 {
         count
     );
     count
+}
+
+fn sys_getpid() -> u64 {
+    123456
+}
+
+fn sys_exit(code: u64) -> u64 {
+    klog!(Debug, "Process exited with code {}", code);
+    42
 }
