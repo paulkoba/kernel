@@ -34,7 +34,7 @@ use crate::allocator::HeapAllocator;
 use crate::cpuid::CpuFeatureEcx;
 use crate::logging::{set_log_level, LogLevel};
 use crate::memory::{
-    init_heap, switch_to_user_page_table, BootInfoFrameAllocator, KERNEL_PAGE_TABLE_FRAME,
+    init_heap, switch_to_user_page_table, KFrameAllocator, KERNEL_PAGE_TABLE_FRAME,
 };
 use crate::serial::SerialPort;
 use crate::syscall::configure_syscalls;
@@ -52,7 +52,7 @@ const BOOTLOADER_CONFIG: bootloader_api::BootloaderConfig = {
 entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
 
 fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
-    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_regions) };
+    let mut frame_allocator = unsafe { KFrameAllocator::new(&boot_info.memory_regions) };
 
     set_log_level(LogLevel::Debug);
 
@@ -122,18 +122,5 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     configure_syscalls();
     let mut task: Task = Task::new(1, &mut frame_allocator, offset_page_table.phys_offset());
     switch_to_user_page_table(&mut task.page_table);
-    klog!(
-        Debug,
-        "Global page map offset: {:#x}",
-        offset_page_table.phys_offset().as_u64()
-    );
-    klog!(
-        Debug,
-        "Process page map offset: {:#x}",
-        task.page_table.phys_offset().as_u64()
-    );
-    klog!(Debug, "Kernal page table frame: {:#x}", unsafe {
-        KERNEL_PAGE_TABLE_FRAME
-    });
     jump_userspace(&mut frame_allocator, task);
 }

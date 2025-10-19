@@ -1,6 +1,4 @@
-use crate::memory;
-use crate::memory::{create_user_page_table_with_mapper, KERNEL_PAGE_TABLE_FRAME};
-use core::ops::Add;
+use crate::memory::create_user_page_table_with_mapper;
 use x86_64::structures::paging::{FrameAllocator, OffsetPageTable, Size4KiB};
 use x86_64::VirtAddr;
 

@@ -25,6 +25,7 @@ static mut PER_CPU_DATA: PerCpu = PerCpu {
 };
 
 pub fn configure_syscalls() {
+    #[allow(static_mut_refs)]
     unsafe {
         let syscall_handler_addr = syscall_handler as *const () as u64;
         let efer = rdmsr(EFER);

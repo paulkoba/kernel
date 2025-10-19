@@ -1,9 +1,9 @@
 use crate::gdt::SELECTORS;
 use crate::logging::LogLevel;
 use crate::memory;
-use crate::memory::{USERSPACE_CODE_START, USERSPACE_STACK_START};
+use crate::memory::USERSPACE_CODE_START;
 use crate::task::Task;
-use crate::{klog, logging, syscall};
+use crate::{klog, logging};
 use core::arch::asm;
 use core::fmt::Write;
 use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB};

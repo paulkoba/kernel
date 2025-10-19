@@ -1,20 +1,19 @@
+use alloc::vec::Vec;
 use bootloader_api::info::{MemoryRegionKind, MemoryRegions};
 use core::ops::Sub;
 use x86_64::registers::control::Cr3;
 use x86_64::structures::paging::mapper::MapToError;
 use x86_64::structures::paging::page_table::PageTable;
 use x86_64::structures::paging::{
-    FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags, PhysFrame, Size4KiB,
+    FrameAllocator, FrameDeallocator, Mapper, OffsetPageTable, Page, PageTableFlags, PhysFrame,
+    Size4KiB,
 };
 use x86_64::{PhysAddr, VirtAddr};
 
-pub const PHYSICAL_MEMORY_OFFSET: u64 = 0x0000_1000_0000_0000;
-pub const HEAP_START: usize = 0x0000_2000_0000_0000;
-pub const USERSPACE_CODE_START: u64 = 0x1000;
+pub const PHYSICAL_MEMORY_OFFSET: u64 = 0xFFFF_8880_0000_0000;
+pub const HEAP_START: usize = 0xFFFF_C900_0000_0000;
+pub const USERSPACE_CODE_START: u64 = 0x0000_0000_0040_0000;
 pub const USERSPACE_STACK_START: u64 = 0x7FFF_FFFF_F000;
-pub const USERSPACE_STACK_SIZE: u64 = 1024 * 1024;
-pub const USERSPACE_HEAP_START: u64 = 0x5555_5555_0000;
-pub const KERNEL_PML4_INDEX: usize = 256;
 
 pub static mut KERNEL_PAGE_TABLE_FRAME: u64 = 0;
 
@@ -64,6 +63,36 @@ unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
         let frame = self.usable_frames().nth(self.next);
         self.next += 1;
         frame
+    }
+}
+
+pub struct KFrameAllocator {
+    inner: BootInfoFrameAllocator,
+    free_list: Vec<PhysFrame>,
+}
+
+impl KFrameAllocator {
+    pub unsafe fn new(memory_map: &'static MemoryRegions) -> Self {
+        Self {
+            inner: BootInfoFrameAllocator::init(memory_map),
+            free_list: Vec::new(),
+        }
+    }
+}
+
+unsafe impl FrameAllocator<Size4KiB> for KFrameAllocator {
+    fn allocate_frame(&mut self) -> Option<PhysFrame> {
+        if let Some(frame) = self.free_list.pop() {
+            Some(frame)
+        } else {
+            self.inner.allocate_frame()
+        }
+    }
+}
+
+impl FrameDeallocator<Size4KiB> for KFrameAllocator {
+    unsafe fn deallocate_frame(&mut self, frame: PhysFrame<Size4KiB>) {
+        self.free_list.push(frame);
     }
 }
 
