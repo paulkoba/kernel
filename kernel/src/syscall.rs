@@ -2,7 +2,7 @@ use crate::gdt::SELECTORS;
 use crate::instructions::{rdmsr, wrmsr, EFER, FMASK, KERNEL_GS_BASE, LSTAR, STAR};
 use crate::task::TrapFrame;
 use crate::{klog, logging, LogLevel};
-use core::arch::{asm, naked_asm};
+use core::arch::naked_asm;
 use core::fmt::Write;
 
 #[repr(align(16))]

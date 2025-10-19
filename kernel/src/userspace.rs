@@ -1,13 +1,16 @@
 use crate::gdt::SELECTORS;
-use crate::syscall;
+use crate::logging::LogLevel;
+use crate::memory;
+use crate::memory::{USERSPACE_CODE_START, USERSPACE_STACK_START};
+use crate::task::Task;
+use crate::{klog, logging, syscall};
 use core::arch::asm;
+use core::fmt::Write;
 use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB};
 use x86_64::VirtAddr;
 
-pub fn jump_userspace(
-    mapper: &mut impl Mapper<Size4KiB>,
-    frame_allocator: &mut impl FrameAllocator<Size4KiB>,
-) -> ! {
+pub fn jump_userspace(frame_allocator: &mut impl FrameAllocator<Size4KiB>, task: Task) -> ! {
+    let mut mapper = task.page_table;
     let user_stack_frame = frame_allocator
         .allocate_frame()
         .expect("no more frames available");
@@ -19,7 +22,7 @@ pub fn jump_userspace(
         | PageTableFlags::WRITABLE
         | PageTableFlags::USER_ACCESSIBLE
         | PageTableFlags::NO_EXECUTE;
-    let user_stack_start = VirtAddr::new(0x7fff_ffff_0000);
+    let user_stack_start = VirtAddr::new(memory::USERSPACE_STACK_START);
     let user_stack_page = Page::containing_address(user_stack_start);
     unsafe {
         mapper
@@ -35,7 +38,7 @@ pub fn jump_userspace(
 
     let user_code_flags =
         PageTableFlags::PRESENT | PageTableFlags::USER_ACCESSIBLE | PageTableFlags::WRITABLE;
-    let user_code_start = VirtAddr::new(0x4000_0000);
+    let user_code_start = VirtAddr::new(USERSPACE_CODE_START);
     let user_code_page = Page::containing_address(user_code_start);
     unsafe {
         mapper
@@ -51,12 +54,11 @@ pub fn jump_userspace(
 
     let fn_size = 0x800;
     let userspace_fn = user_code_start.as_u64() as *mut u8;
-
+    klog!(Debug, "1");
     unsafe {
         core::ptr::copy_nonoverlapping(test_userspace_routine as *const _, userspace_fn, fn_size);
-
-        syscall::configure_syscalls();
     }
+    klog!(Debug, "2");
 
     let user_stack_pointer = user_stack_page.start_address().as_u64() + 4096 - 2048;
 

@@ -8,6 +8,7 @@ use alloc::string::String;
 use bootloader_api::config::Mapping;
 use bootloader_api::{entry_point, BootInfo};
 use core::fmt::Write;
+use task::Task;
 use x86_64::structures::paging::OffsetPageTable;
 use x86_64::VirtAddr;
 
@@ -32,7 +33,9 @@ mod userspace;
 use crate::allocator::HeapAllocator;
 use crate::cpuid::CpuFeatureEcx;
 use crate::logging::{set_log_level, LogLevel};
-use crate::memory::{init_heap, BootInfoFrameAllocator};
+use crate::memory::{
+    init_heap, switch_to_user_page_table, BootInfoFrameAllocator, KERNEL_PAGE_TABLE_FRAME,
+};
 use crate::serial::SerialPort;
 use crate::syscall::configure_syscalls;
 use crate::userspace::jump_userspace;
@@ -91,13 +94,15 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     x86_64::instructions::interrupts::int3();
 
     let mut offset_page_table: OffsetPageTable;
-
-    if let Some(memory_offset) = boot_info.physical_memory_offset.into_option() {
-        offset_page_table = memory::init(VirtAddr::new(memory_offset));
+    if let Some(bootloader_memory_offset) = boot_info.physical_memory_offset.into_option() {
+        unsafe {
+            KERNEL_PAGE_TABLE_FRAME = bootloader_memory_offset;
+        }
+        offset_page_table = memory::init(VirtAddr::new(unsafe { KERNEL_PAGE_TABLE_FRAME }));
 
         init_heap(
             memory::HEAP_START,
-            1024 * 1024,
+            1024 * 1024, // TODO: This should be dynamic and at least ~2% of the total memory.
             &mut offset_page_table,
             &mut frame_allocator,
         )
@@ -115,5 +120,20 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     klog!(Debug, "{}", string);
 
     configure_syscalls();
-    jump_userspace(&mut offset_page_table, &mut frame_allocator);
+    let mut task: Task = Task::new(1, &mut frame_allocator, offset_page_table.phys_offset());
+    switch_to_user_page_table(&mut task.page_table);
+    klog!(
+        Debug,
+        "Global page map offset: {:#x}",
+        offset_page_table.phys_offset().as_u64()
+    );
+    klog!(
+        Debug,
+        "Process page map offset: {:#x}",
+        task.page_table.phys_offset().as_u64()
+    );
+    klog!(Debug, "Kernal page table frame: {:#x}", unsafe {
+        KERNEL_PAGE_TABLE_FRAME
+    });
+    jump_userspace(&mut frame_allocator, task);
 }

@@ -1,3 +1,9 @@
+use crate::memory;
+use crate::memory::{create_user_page_table_with_mapper, KERNEL_PAGE_TABLE_FRAME};
+use core::ops::Add;
+use x86_64::structures::paging::{FrameAllocator, OffsetPageTable, Size4KiB};
+use x86_64::VirtAddr;
+
 #[repr(C)]
 pub struct TaskContext {
     pub rsp: u64,
@@ -35,4 +41,25 @@ pub struct TrapFrame {
     pub rflags: u64,
     pub rsp: u64,
     pub ss: u64,
+}
+
+pub struct Task {
+    pub pid: u32,
+    pub context: *mut TaskContext,
+    pub page_table: OffsetPageTable<'static>,
+}
+
+impl Task {
+    pub fn new(
+        pid: u32,
+        frame_allocator: &mut impl FrameAllocator<Size4KiB>,
+        physical_memory_offset: VirtAddr,
+    ) -> Self {
+        Task {
+            pid,
+            context: core::ptr::null_mut(),
+            page_table: create_user_page_table_with_mapper(frame_allocator, physical_memory_offset)
+                .unwrap(),
+        }
+    }
 }
