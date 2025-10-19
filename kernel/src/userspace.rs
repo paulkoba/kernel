@@ -1,16 +1,13 @@
 use crate::gdt::SELECTORS;
-use crate::logging::LogLevel;
 use crate::memory;
 use crate::memory::USERSPACE_CODE_START;
 use crate::task::Task;
-use crate::{klog, logging};
 use core::arch::asm;
-use core::fmt::Write;
 use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB};
 use x86_64::VirtAddr;
 
-pub fn jump_userspace(frame_allocator: &mut impl FrameAllocator<Size4KiB>, task: Task) -> ! {
-    let mut mapper = task.page_table;
+pub fn jump_userspace(frame_allocator: &mut impl FrameAllocator<Size4KiB>, task: &mut Task) -> () {
+    let mapper = &mut task.page_table;
     let user_stack_frame = frame_allocator
         .allocate_frame()
         .expect("no more frames available");
@@ -54,11 +51,9 @@ pub fn jump_userspace(frame_allocator: &mut impl FrameAllocator<Size4KiB>, task:
 
     let fn_size = 0x800;
     let userspace_fn = user_code_start.as_u64() as *mut u8;
-    klog!(Debug, "1");
     unsafe {
         core::ptr::copy_nonoverlapping(test_userspace_routine as *const _, userspace_fn, fn_size);
     }
-    klog!(Debug, "2");
 
     let user_stack_pointer = user_stack_page.start_address().as_u64() + 4096 - 2048;
 
@@ -81,38 +76,38 @@ pub fn jump_userspace(frame_allocator: &mut impl FrameAllocator<Size4KiB>, task:
         user_rip = in(reg) user_code_start.as_u64(),
         );
     }
-
-    unreachable!("iretq failed");
 }
 
 #[no_mangle]
 pub extern "C" fn test_userspace_routine() {
-    static MSG_2: &[u8] = b"Userspace code running!\n";
-    static MSG: &[u8] = b"Hello, World! Test........\n";
-
     unsafe {
         asm!(
-        "mov rax, 1",
-        "mov rdi, 1",
-        "mov rsi, {msg_ptr}",
-        "mov rdx, {msg_len}",
-        "syscall",
-        "mov rax, 1",
-        "mov rsi, {msg2_ptr}",
-        "mov rdx, {msg2_len}",
-        "syscall",
-        "mov rax, 39",
-        "syscall",
-        "mov rdi, rax",
-        "mov rax, 60",
-        "syscall",
-        "2:",
-        "jmp 2b",
-        msg_ptr = in(reg) MSG.as_ptr(),
-        msg_len = in(reg) MSG.len(),
-        msg2_ptr = in(reg) MSG_2.as_ptr(),
-        msg2_len = in(reg) MSG_2.len(),
-        options(nomem, nostack)
+            "sub rsp, 13",
+            "mov byte ptr [rsp], 'H'",
+            "mov byte ptr [rsp + 1], 'e'",
+            "mov byte ptr [rsp + 2], 'l'",
+            "mov byte ptr [rsp + 3], 'l'",
+            "mov byte ptr [rsp + 4], 'o'",
+            "mov byte ptr [rsp + 5], ','",
+            "mov byte ptr [rsp + 6], ' '",
+            "mov byte ptr [rsp + 7], 'w'",
+            "mov byte ptr [rsp + 8], 'o'",
+            "mov byte ptr [rsp + 9], 'r'",
+            "mov byte ptr [rsp + 10], 'l'",
+            "mov byte ptr [rsp + 11], 'd'",
+            "mov byte ptr [rsp + 12], '!'",
+            "mov rax, 1",
+            "mov rdi, 1",
+            "mov rsi, rsp",
+            "mov rdx, 13",
+            "syscall",     // sys_write
+            "mov rax, 39", // sys_getpid
+            "syscall",
+            "mov rdi, rax",
+            "mov rax, 60",
+            "syscall", // sys_exit
+            "2:",
+            "jmp 2b",
         );
     }
     loop {}

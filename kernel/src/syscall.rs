@@ -1,6 +1,6 @@
 use crate::gdt::SELECTORS;
 use crate::instructions::{rdmsr, wrmsr, EFER, FMASK, KERNEL_GS_BASE, LSTAR, STAR};
-use crate::task::TrapFrame;
+use crate::task::{get_current_task, TrapFrame};
 use crate::{klog, logging, LogLevel};
 use core::arch::naked_asm;
 use core::fmt::Write;
@@ -112,8 +112,10 @@ pub unsafe extern "C" fn syscall_handler() {
 
 #[no_mangle]
 extern "C" fn syscall_dispatch(frame: &mut TrapFrame) -> u64 {
-    klog!(Debug, "Syscall {} from RIP {:#x}", frame.rax, frame.rip);
-    klog!(Debug, "{:?}", frame);
+    let task = get_current_task();
+
+    task.trap_frame = frame as *mut TrapFrame;
+
     let result = match frame.rax {
         1 => sys_write(frame.rdi, frame.rsi, frame.rdx),
         39 => sys_getpid(),
@@ -129,18 +131,22 @@ fn sys_write(fd: u64, buf: u64, count: u64) -> u64 {
     if fd != 1 {
         return u64::MAX;
     }
+    let slice = unsafe { core::slice::from_raw_parts(buf as *const u8, count as usize) };
+    let msg = core::str::from_utf8(slice).unwrap_or("<invalid utf-8>");
     klog!(
         Debug,
-        "sys_write called with fd={}, buf={:#x}, count={}",
+        "sys_write called with fd={}, buf=\"{}\", count={}",
         fd,
-        buf,
+        msg,
         count
     );
     count
 }
 
 fn sys_getpid() -> u64 {
-    123456
+    let task = get_current_task();
+    klog!(Debug, "sys_getpid called, returning pid={}", task.pid);
+    task.pid
 }
 
 fn sys_exit(code: u64) -> u64 {

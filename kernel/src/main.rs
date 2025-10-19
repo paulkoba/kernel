@@ -1,6 +1,8 @@
 #![no_std]
 #![no_main]
 #![feature(abi_x86_interrupt)]
+#![feature(optimize_attribute)]
+
 extern crate alloc;
 
 use alloc::format;
@@ -38,6 +40,7 @@ use crate::memory::{
 };
 use crate::serial::SerialPort;
 use crate::syscall::configure_syscalls;
+use crate::task::set_current_task;
 use crate::userspace::jump_userspace;
 
 #[global_allocator]
@@ -120,7 +123,14 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     klog!(Debug, "{}", string);
 
     configure_syscalls();
-    let mut task: Task = Task::new(1, &mut frame_allocator, offset_page_table.phys_offset());
+    set_current_task(Task::new(
+        1,
+        &mut frame_allocator,
+        offset_page_table.phys_offset(),
+    ));
+    let task = task::get_current_task();
     switch_to_user_page_table(&mut task.page_table);
     jump_userspace(&mut frame_allocator, task);
+
+    hcf::hcf();
 }
