@@ -53,7 +53,6 @@ impl Task {
     }
 }
 
-// task
 static mut TASKS: BTreeMap<u64, Task> = BTreeMap::new();
 
 static mut CURRENT_TASK: u64 = 0;

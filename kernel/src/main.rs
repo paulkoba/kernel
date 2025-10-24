@@ -2,20 +2,14 @@
 #![no_main]
 #![feature(abi_x86_interrupt)]
 #![feature(optimize_attribute)]
+#![allow(dead_code)]
 
 extern crate alloc;
-
-use alloc::format;
-use alloc::string::String;
-use bootloader_api::config::Mapping;
-use bootloader_api::{entry_point, BootInfo};
-use core::fmt::Write;
-use x86_64::structures::paging::OffsetPageTable;
-use x86_64::VirtAddr;
 
 mod allocator;
 mod cpuid;
 mod freestanding;
+mod fs;
 mod gdt;
 mod hcf;
 mod idt;
@@ -29,7 +23,16 @@ mod serial;
 mod syscall;
 mod task;
 mod time;
+mod types;
 mod userspace;
+
+use alloc::format;
+use alloc::string::String;
+use bootloader_api::config::Mapping;
+use bootloader_api::{entry_point, BootInfo};
+use core::fmt::Write;
+use x86_64::structures::paging::OffsetPageTable;
+use x86_64::VirtAddr;
 
 use crate::allocator::HeapAllocator;
 use crate::cpuid::CpuFeatureEcx;
