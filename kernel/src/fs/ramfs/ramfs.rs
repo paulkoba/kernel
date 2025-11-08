@@ -29,9 +29,12 @@ fn ramfs_mount(fs: &mut Filesystem, dev: u32, mount_point: &str) -> *mut Dentry 
         i_mode: Mode::from(0o40777),
         i_uid: Uid::from(0),
         i_gid: Gid::from(0),
+        i_size: 0,
+        i_sb: sb_ptr,
         file_operations: Some(&ramfs_file_operations::RAMFS_FILE_OPERATIONS),
         inode_operations: Some(&ramfs_inode_operations::RAMFS_INODE_OPERATIONS),
         i_dentry: alloc::collections::LinkedList::new(),
+        i_private: core::ptr::null_mut(),
     });
     let root_inode_ptr = Box::into_raw(root_inode);
 
@@ -46,7 +49,7 @@ fn ramfs_mount(fs: &mut Filesystem, dev: u32, mount_point: &str) -> *mut Dentry 
         d_inode: root_inode_ptr,
         d_sb: sb_ptr,
         d_op: None,
-        d_child: core::ptr::null_mut(),
+        d_parent: core::ptr::null_mut(), // Root has no parent
         d_subdirs: alloc::collections::BTreeMap::new(),
     });
     let root_dentry_ptr = Box::into_raw(root_dentry);

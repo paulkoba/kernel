@@ -17,7 +17,7 @@ unsafe extern "C" fn ramfs_mkdir(dir: *mut Inode, dentry: *mut Dentry, mode: Mod
     let dir_mode = Mode::from(mode.0 | 0o40000); // Set directory bit
 
     // Allocate new inode
-    let new_inode = vfs::allocate_empty_inode(dir_mode, dir_ref.i_uid, dir_ref.i_gid);
+    let new_inode = vfs::allocate_empty_inode(dir_mode, dir_ref.i_uid, dir_ref.i_gid, dir_ref.i_sb);
     if new_inode.is_null() {
         return -1;
     }
@@ -27,7 +27,8 @@ unsafe extern "C" fn ramfs_mkdir(dir: *mut Inode, dentry: *mut Dentry, mode: Mod
         // Set inode operations for directory (use parent's operations)
         new_inode_ref.inode_operations = dir_ref.inode_operations;
         new_inode_ref.file_operations = Some(&ramfs_file_operations::RAMFS_FILE_OPERATIONS);
-        // Link dentry to inode
+        new_inode_ref.i_size = 0; // Directory size (number of entries could be tracked)
+                                  // Link dentry to inode
         new_inode_ref.i_dentry.push_back(dentry);
     }
 
@@ -52,7 +53,7 @@ unsafe extern "C" fn ramfs_create(
     let dentry_ref = &mut *dentry;
 
     // Allocate new inode
-    let new_inode = vfs::allocate_empty_inode(mode, uid, gid);
+    let new_inode = vfs::allocate_empty_inode(mode, uid, gid, dir_ref.i_sb);
     if new_inode.is_null() {
         return -1;
     }
@@ -62,7 +63,8 @@ unsafe extern "C" fn ramfs_create(
         // Set inode operations for file (use parent's operations)
         new_inode_ref.inode_operations = dir_ref.inode_operations;
         new_inode_ref.file_operations = Some(&ramfs_file_operations::RAMFS_FILE_OPERATIONS);
-        // Link dentry to inode
+        new_inode_ref.i_size = 0; // New file starts with size 0
+                                  // Link dentry to inode
         new_inode_ref.i_dentry.push_back(dentry);
     }
 

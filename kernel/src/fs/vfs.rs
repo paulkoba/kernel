@@ -1,9 +1,10 @@
 use crate::fs::dentry::Dentry;
+use crate::fs::file::File;
 use crate::fs::inode::Inode;
 use crate::fs::ramfs::ramfs;
 use crate::fs::super_block::SuperBlock;
 use crate::fs::super_operations::SuperOperations;
-use crate::types::{Gid, Mode, Uid};
+use crate::types::{FMode, Gid, Mode, Uid};
 use alloc::boxed::Box;
 use alloc::collections::{BTreeMap, LinkedList};
 use alloc::format;
@@ -56,7 +57,7 @@ pub fn get_full_path(dentry: *mut Dentry) -> String {
         while !current.is_null() {
             let dentry_ref = &*current;
             components.push(dentry_ref.d_name.clone());
-            current = dentry_ref.d_child;
+            current = dentry_ref.d_parent;
         }
     }
 
@@ -160,7 +161,7 @@ pub fn mkdir(parent: *mut Dentry, name: &str, mode: Mode, uid: Uid, gid: Gid) ->
             d_inode: core::ptr::null_mut(),
             d_sb: parent_ref.d_sb,
             d_op: parent_ref.d_op,
-            d_child: parent_ref,
+            d_parent: parent,
             d_subdirs: alloc::collections::BTreeMap::new(),
         });
 
@@ -199,13 +200,75 @@ pub fn mkdir(parent: *mut Dentry, name: &str, mode: Mode, uid: Uid, gid: Gid) ->
     }
 }
 
+pub fn create_file(parent: *mut Dentry, name: &str, mode: Mode, uid: Uid, gid: Gid) -> *mut Dentry {
+    unsafe {
+        if parent.is_null() {
+            return core::ptr::null_mut();
+        }
+
+        let parent_ref = &mut *parent;
+
+        // Check if file already exists
+        if parent_ref.d_subdirs.contains_key(name) {
+            return core::ptr::null_mut();
+        }
+
+        // Check if parent has an inode
+        if parent_ref.d_inode.is_null() {
+            return core::ptr::null_mut();
+        }
+
+        let parent_inode = &*parent_ref.d_inode;
+
+        // Check if parent inode has inode operations
+        if parent_inode.inode_operations.is_none() {
+            return core::ptr::null_mut();
+        }
+
+        let inode_op = parent_inode.inode_operations.unwrap();
+
+        // Create new dentry
+        let new_dentry = Box::new(Dentry {
+            d_name: String::from(name),
+            d_inode: core::ptr::null_mut(),
+            d_sb: parent_ref.d_sb,
+            d_op: parent_ref.d_op,
+            d_parent: parent,
+            d_subdirs: alloc::collections::BTreeMap::new(),
+        });
+
+        let new_dentry_ptr = Box::into_raw(new_dentry);
+
+        // Call filesystem-specific create operation
+        if let Some(create_fn) = inode_op.create {
+            let result = create_fn(parent_ref.d_inode, new_dentry_ptr, mode, uid, gid);
+            if result < 0 {
+                // create failed, clean up dentry
+                let _ = Box::from_raw(new_dentry_ptr);
+                return core::ptr::null_mut();
+            }
+        } else {
+            // No create operation available, clean up and return null
+            let _ = Box::from_raw(new_dentry_ptr);
+            return core::ptr::null_mut();
+        }
+
+        // Add to parent's subdirs
+        parent_ref
+            .d_subdirs
+            .insert(String::from(name), new_dentry_ptr);
+
+        new_dentry_ptr
+    }
+}
+
 pub fn allocate_empty_dentry(name: &str) -> *mut Dentry {
     let dentry = Box::new(Dentry {
         d_name: String::from(name),
         d_inode: core::ptr::null_mut(),
         d_sb: core::ptr::null_mut(),
         d_op: None,
-        d_child: core::ptr::null_mut(),
+        d_parent: core::ptr::null_mut(),
         d_subdirs: BTreeMap::new(),
     });
     Box::into_raw(dentry)
@@ -214,7 +277,7 @@ pub fn allocate_empty_dentry(name: &str) -> *mut Dentry {
 pub static mut INODES_LIST: BTreeMap<u64, *mut Inode> = BTreeMap::new();
 pub static mut NEXT_INODE_NUMBER: u64 = 2; // Start at 2 since 1 is reserved for root
 pub static MAX_INODES: u64 = 65536;
-pub fn allocate_empty_inode(mode: Mode, uid: Uid, gid: Gid) -> *mut Inode {
+pub fn allocate_empty_inode(mode: Mode, uid: Uid, gid: Gid, sb: *mut SuperBlock) -> *mut Inode {
     let ino = unsafe {
         while INODES_LIST.contains_key(&NEXT_INODE_NUMBER) {
             NEXT_INODE_NUMBER += 1;
@@ -232,12 +295,115 @@ pub fn allocate_empty_inode(mode: Mode, uid: Uid, gid: Gid) -> *mut Inode {
             i_mode: mode,
             i_uid: uid,
             i_gid: gid,
+            i_size: 0,
+            i_sb: sb,
             file_operations: None,
             inode_operations: None,
             i_dentry: LinkedList::new(),
+            i_private: core::ptr::null_mut(),
         });
         let inode_ptr = Box::into_raw(inode);
         INODES_LIST.insert(ino, inode_ptr);
         inode_ptr
+    }
+}
+
+// Helper functions for file operations
+pub fn open_file(dentry: *mut Dentry, mode: FMode) -> Option<Box<File>> {
+    unsafe {
+        if dentry.is_null() {
+            return None;
+        }
+
+        let dentry_ref = &*dentry;
+        if dentry_ref.d_inode.is_null() {
+            return None;
+        }
+
+        let inode = dentry_ref.d_inode;
+        let inode_ref = &*inode;
+
+        if inode_ref.file_operations.is_none() {
+            return None;
+        }
+
+        let file_ops = inode_ref.file_operations.unwrap();
+        let mut file = Box::new(File {
+            f_inode: inode,
+            f_mode: mode,
+            f_pos: 0,
+        });
+
+        // Call open operation if available
+        if let Some(open_fn) = file_ops.open {
+            let result = open_fn(inode, file.as_mut() as *mut File);
+            if result < 0 {
+                return None;
+            }
+        }
+
+        Some(file)
+    }
+}
+
+pub fn read_file(file: &mut File, buf: &mut [u8]) -> isize {
+    unsafe {
+        if file.f_inode.is_null() {
+            return -1;
+        }
+
+        let inode_ref = &*file.f_inode;
+        if inode_ref.file_operations.is_none() {
+            return -1;
+        }
+
+        let file_ops = inode_ref.file_operations.unwrap();
+        if let Some(read_fn) = file_ops.read {
+            read_fn(
+                file as *mut File,
+                buf.as_mut_ptr(),
+                buf.len(),
+                &mut file.f_pos,
+            )
+        } else {
+            -1
+        }
+    }
+}
+
+pub fn write_file(file: &mut File, buf: &[u8]) -> isize {
+    unsafe {
+        if file.f_inode.is_null() {
+            return -1;
+        }
+
+        let inode_ref = &*file.f_inode;
+        if inode_ref.file_operations.is_none() {
+            return -1;
+        }
+
+        let file_ops = inode_ref.file_operations.unwrap();
+        if let Some(write_fn) = file_ops.write {
+            write_fn(file as *mut File, buf.as_ptr(), buf.len(), &mut file.f_pos)
+        } else {
+            -1
+        }
+    }
+}
+
+pub fn close_file(mut file: Box<File>) {
+    unsafe {
+        if file.f_inode.is_null() {
+            return;
+        }
+
+        let inode_ref = &*file.f_inode;
+        if let Some(file_ops) = inode_ref.file_operations {
+            if let Some(release_fn) = file_ops.release {
+                let file_ptr = file.as_mut() as *mut File;
+                release_fn(file.f_inode, file_ptr);
+            }
+        }
+        // File is dropped here
     }
 }
