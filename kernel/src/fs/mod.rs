@@ -1,6 +1,6 @@
 mod dentry;
 mod dentry_operations;
-mod file;
+pub mod file;
 mod file_operations;
 mod inode;
 mod inode_operations;

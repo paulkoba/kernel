@@ -7,7 +7,6 @@ use crate::fs::super_operations::SuperOperations;
 use crate::types::{FMode, Gid, Mode, Uid};
 use alloc::boxed::Box;
 use alloc::collections::{BTreeMap, LinkedList};
-use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
