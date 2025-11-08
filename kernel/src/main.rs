@@ -3,7 +3,7 @@
 #![feature(abi_x86_interrupt)]
 #![feature(optimize_attribute)]
 #![allow(dead_code)]
-
+#![allow(static_mut_refs)]
 extern crate alloc;
 
 mod allocator;
@@ -44,6 +44,10 @@ use crate::serial::SerialPort;
 use crate::syscall::configure_syscalls;
 use crate::task::{create_task, set_current_pid, Task};
 use crate::userspace::jump_userspace;
+
+use crate::fs::ramfs;
+use crate::fs::vfs;
+use crate::types::Mode;
 
 #[global_allocator]
 static mut ALLOCATOR: HeapAllocator = HeapAllocator::new(0, 0);
@@ -130,6 +134,32 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     let task: &mut Task = task::get_current_task().expect("Failed to get current task");
     switch_to_user_page_table(&mut task.page_table);
 
+    vfs::vfs_init();
+    unsafe {
+        if !vfs::ROOT_DENTRY.is_null() {
+            klog!(
+                Debug,
+                "Mounted RAMFS at: {}",
+                vfs::get_full_path(vfs::ROOT_DENTRY)
+            );
+            let a = vfs::mkdir(
+                vfs::ROOT_DENTRY,
+                "a",
+                Mode::from(0o40777),
+                0.into(),
+                0.into(),
+            );
+            if !a.is_null() {
+                klog!(Debug, "Created directory at: {}", vfs::get_full_path(a));
+                let b = vfs::mkdir(a, "b", Mode::from(0o40777), 0.into(), 0.into());
+                if !b.is_null() {
+                    klog!(Debug, "Created directory at: {}", vfs::get_full_path(b));
+                }
+            }
+        } else {
+            klog!(Fatal, "Failed to mount root filesystem");
+        }
+    }
     jump_userspace(&mut frame_allocator, task);
 
     hcf::hcf();

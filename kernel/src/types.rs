@@ -45,5 +45,6 @@ impl_conversions!(Pid, u32);
 impl_conversions!(Uid, u32);
 impl_conversions!(Gid, u32);
 impl_conversions!(FMode, u32);
+impl_conversions!(Dev, u32);
 
 impl_conversions!(Mode, u16);

@@ -1,10 +1,11 @@
 mod dentry;
+mod dentry_operations;
 mod file;
 mod file_operations;
 mod inode;
 mod inode_operations;
-mod ramfs;
+pub(crate) mod ramfs;
 mod statfs;
 mod super_block;
 mod super_operations;
-mod vfs;
+pub(crate) mod vfs;
