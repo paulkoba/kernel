@@ -68,6 +68,21 @@ fn ramfs_mount(fs: &mut Filesystem, dev: u32, mount_point: &str) -> *mut Dentry 
 }
 
 fn ramfs_kill_sb(sb: &mut SuperBlock) -> i32 {
+    use crate::{klog, logging, LogLevel};
+    klog!(Debug, "Killing RAMFS superblock");
+
+    unsafe {
+        // The actual cleanup is done by free_dentry_tree in VFS
+        // This function is called before the tree is freed
+        // We can do any filesystem-specific cleanup here if needed
+
+        // For RAMFS, all data is freed when inodes are freed
+        // which happens in free_dentry_tree
+
+        // Clear the root pointer
+        sb.s_root = core::ptr::null_mut();
+    }
+
     0
 }
 

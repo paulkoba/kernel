@@ -198,6 +198,33 @@ pub extern "C" fn test_userspace_routine() {
             "mov rax, 3", // sys_close
             "mov rdi, r12",
             "syscall",
+            // Reopen for reading to verify the write
+            "mov rax, 2",   // sys_open
+            "mov rdi, rbx", // pathname
+            "mov rsi, 0",   // O_RDONLY
+            "mov rdx, 0",   // mode
+            "syscall",
+            "cmp rax, 3",
+            "jl 3f",        // skip read if open failed
+            "mov r12, rax", // save fd
+            // Read back what we wrote (seek to end - 22, or just read from start)
+            // For simplicity, read from start
+            "mov rax, 0",          // sys_read
+            "mov rdi, r12",        // fd
+            "lea rsi, [rsp + 50]", // different buffer
+            "mov rdx, 100",        // count
+            "syscall",
+            // Write what we read to stdout
+            "mov r13, rax",        // save read count
+            "mov rax, 1",          // sys_write
+            "mov rdi, 1",          // stdout
+            "lea rsi, [rsp + 50]", // buffer
+            "mov rdx, r13",        // count
+            "syscall",
+            // Close file
+            "mov rax, 3", // sys_close
+            "mov rdi, r12",
+            "syscall",
             "jmp 3f", // jump to label 3 (done)
             "2:",     // open_failed / write_test_failed
             "3:",     // done

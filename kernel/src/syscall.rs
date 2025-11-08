@@ -165,6 +165,35 @@ fn sys_write(fd: u64, buf: u64, count: u64) -> u64 {
     if result < 0 {
         u64::MAX
     } else {
+        // Log file write (but truncate long messages)
+        let preview_len = result.min(64) as usize;
+        let preview = &slice[..preview_len.min(slice.len())];
+        if let Ok(msg) = core::str::from_utf8(preview) {
+            if result as usize > 64 {
+                klog!(
+                    Debug,
+                    "sys_write: wrote {} bytes to fd={} (preview: \"{}...\")",
+                    result,
+                    fd,
+                    msg
+                );
+            } else {
+                klog!(
+                    Debug,
+                    "sys_write: wrote {} bytes to fd={} (content: \"{}\")",
+                    result,
+                    fd,
+                    msg.trim_end_matches('\n')
+                );
+            }
+        } else {
+            klog!(
+                Debug,
+                "sys_write: wrote {} bytes to fd={} (binary data)",
+                result,
+                fd
+            );
+        }
         result as u64
     }
 }

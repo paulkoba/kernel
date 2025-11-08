@@ -113,9 +113,9 @@ unsafe extern "C" fn ramfs_open(inode: *mut Inode, file: *mut File) -> isize {
     0
 }
 
-unsafe extern "C" fn ramfs_release(inode: *mut Inode, file: *mut File) -> isize {
-    // For RAMFS, we don't need to do anything special on release
-    // The data stays in memory
+unsafe extern "C" fn ramfs_release(_inode: *mut Inode, _file: *mut File) -> isize {
+    // RAMFS data cleanup is handled in close_file when i_count reaches 0
+    // This function is called before the count is decremented, so we don't free here
     0
 }
 

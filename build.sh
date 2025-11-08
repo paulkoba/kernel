@@ -1,5 +1,10 @@
 set -e
 
+# Compile the init program assembly to ELF
+echo "Compiling init program..."
+as --64 -o kernel/programs/init.o kernel/programs/init.S
+ld -m elf_x86_64 -Ttext 0x400000 --oformat binary -o kernel/programs/init.bin kernel/programs/init.o
+
 cargo build -p kernel --release --target x86_64-failos.json -Z build-std=core,compiler_builtins,alloc
 cargo run --release -p builder
 

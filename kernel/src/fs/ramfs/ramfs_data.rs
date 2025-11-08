@@ -58,6 +58,16 @@ pub unsafe fn ramfs_remove_data(ino: u64) {
     }
 }
 
+// Check if data exists for an inode and remove it if it does
+pub unsafe fn ramfs_try_remove_data(ino: u64) -> bool {
+    ensure_initialized();
+    if let Some(ref mut data_map) = RAMFS_DATA {
+        data_map.remove(&ino).is_some()
+    } else {
+        false
+    }
+}
+
 pub unsafe fn ramfs_resize_data(ino: u64, new_size: usize) {
     ensure_initialized();
     if let Some(ref mut data_map) = RAMFS_DATA {

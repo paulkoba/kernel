@@ -55,7 +55,10 @@ pub fn get_full_path(dentry: *mut Dentry) -> String {
         let mut current = dentry;
         while !current.is_null() {
             let dentry_ref = &*current;
-            components.push(dentry_ref.d_name.clone());
+            // Skip root component (which is "/")
+            if dentry_ref.d_name != "/" {
+                components.push(dentry_ref.d_name.clone());
+            }
             current = dentry_ref.d_parent;
         }
     }
@@ -320,11 +323,14 @@ pub fn open_file(dentry: *mut Dentry, mode: FMode) -> Option<Box<File>> {
         }
 
         let inode = dentry_ref.d_inode;
-        let inode_ref = &*inode;
+        let inode_ref = &mut *inode;
 
         if inode_ref.file_operations.is_none() {
             return None;
         }
+
+        // Increment reference count
+        inode_ref.i_count += 1;
 
         let file_ops = inode_ref.file_operations.unwrap();
         let mut file = Box::new(File {
@@ -337,6 +343,8 @@ pub fn open_file(dentry: *mut Dentry, mode: FMode) -> Option<Box<File>> {
         if let Some(open_fn) = file_ops.open {
             let result = open_fn(inode, file.as_mut() as *mut File);
             if result < 0 {
+                // Open failed, decrement reference count
+                inode_ref.i_count -= 1;
                 return None;
             }
         }
@@ -390,19 +398,145 @@ pub fn write_file(file: &mut File, buf: &[u8]) -> isize {
     }
 }
 
+// Recursively free a dentry and all its children
+unsafe fn free_dentry_tree(dentry: *mut Dentry) {
+    if dentry.is_null() {
+        return;
+    }
+
+    let dentry_ref = &mut *dentry;
+
+    // Collect child dentries first (we can't iterate and modify at the same time)
+    let children: Vec<*mut Dentry> = dentry_ref.d_subdirs.values().copied().collect();
+
+    // Recursively free all child dentries
+    for child_dentry in children {
+        free_dentry_tree(child_dentry);
+    }
+
+    // Free the inode if it exists
+    if !dentry_ref.d_inode.is_null() {
+        let inode = dentry_ref.d_inode;
+        let inode_ref = &*inode;
+
+        // Remove from inode's dentry list
+        // Note: We can't easily remove from LinkedList, so we'll just clear it
+        // The inode will be freed separately
+
+        // Remove from global inode list
+        INODES_LIST.remove(&inode_ref.i_ino);
+
+        // Free filesystem-specific data (for RAMFS)
+        use crate::fs::ramfs::ramfs_file_operations;
+        if let Some(file_ops) = inode_ref.file_operations {
+            if core::ptr::eq(file_ops, &ramfs_file_operations::RAMFS_FILE_OPERATIONS) {
+                use crate::fs::ramfs::ramfs_data;
+                ramfs_data::ramfs_remove_data(inode_ref.i_ino);
+            }
+        }
+
+        // Free the inode
+        let _ = Box::from_raw(inode);
+    }
+
+    // Free the superblock if this is the root dentry
+    if !dentry_ref.d_sb.is_null() {
+        let sb = dentry_ref.d_sb;
+        // Check if this is the root by checking if parent is null
+        if dentry_ref.d_parent.is_null() {
+            // This is the root, free the superblock
+            let _ = Box::from_raw(sb);
+        }
+    }
+
+    // Free the dentry itself
+    let _ = Box::from_raw(dentry);
+}
+
 pub fn close_file(mut file: Box<File>) {
     unsafe {
         if file.f_inode.is_null() {
             return;
         }
 
-        let inode_ref = &*file.f_inode;
+        let inode_ref = &mut *file.f_inode;
+
+        // Decrement reference count first
+        let was_last = if inode_ref.i_count > 0 {
+            inode_ref.i_count -= 1;
+            inode_ref.i_count == 0
+        } else {
+            false
+        };
+
+        // Call release operation if available
         if let Some(file_ops) = inode_ref.file_operations {
             if let Some(release_fn) = file_ops.release {
                 let file_ptr = file.as_mut() as *mut File;
                 release_fn(file.f_inode, file_ptr);
             }
         }
+
+        // If this was the last reference, free filesystem-specific data
+        // For RAMFS, this will free the file data
+        if was_last {
+            // Check if this is a RAMFS inode by comparing file_operations pointer
+            use crate::fs::ramfs::ramfs_file_operations;
+            if let Some(file_ops) = inode_ref.file_operations {
+                if core::ptr::eq(file_ops, &ramfs_file_operations::RAMFS_FILE_OPERATIONS) {
+                    use crate::fs::ramfs::ramfs_data;
+                    ramfs_data::ramfs_try_remove_data(inode_ref.i_ino);
+                }
+            }
+        }
+
         // File is dropped here
+    }
+}
+
+// Unmount a filesystem
+pub fn unmount_filesystem(root_dentry: *mut Dentry) -> i32 {
+    unsafe {
+        if root_dentry.is_null() {
+            return -1;
+        }
+
+        let dentry_ref = &*root_dentry;
+
+        // Get the superblock
+        if dentry_ref.d_sb.is_null() {
+            return -1;
+        }
+
+        let sb = dentry_ref.d_sb;
+        let sb_ref = &mut *sb;
+
+        // Call filesystem-specific kill_sb if available
+        // Find the filesystem by checking the root dentry's inode
+        if !dentry_ref.d_inode.is_null() {
+            let inode_ref = &*dentry_ref.d_inode;
+            // Check if it's RAMFS
+            use crate::fs::ramfs::ramfs_file_operations;
+            if let Some(file_ops) = inode_ref.file_operations {
+                if core::ptr::eq(file_ops, &ramfs_file_operations::RAMFS_FILE_OPERATIONS) {
+                    // Call RAMFS kill_sb
+                    if let Some(fs) = get_filesystem_by_name("ramfs") {
+                        if let Some(kill_sb_fn) = fs.kill_sb {
+                            kill_sb_fn(&mut *sb);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Free the entire dentry tree (this will free all inodes, dentries, and data)
+        free_dentry_tree(root_dentry);
+
+        // Clear ROOT_DENTRY if it matches
+        if ROOT_DENTRY == root_dentry {
+            ROOT_DENTRY = core::ptr::null_mut();
+        }
+
+        0
     }
 }
