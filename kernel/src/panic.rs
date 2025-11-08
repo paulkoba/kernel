@@ -3,11 +3,7 @@
 use core::panic::PanicInfo;
 
 #[cfg(not(test))]
-use crate::LogLevel;
-#[cfg(not(test))]
-use crate::{klog, logging};
-#[cfg(not(test))]
-use core::fmt::Write;
+use crate::klog;
 
 #[cfg(not(test))]
 #[panic_handler]

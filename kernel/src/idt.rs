@@ -1,4 +1,3 @@
-use crate::LogLevel;
 use core::mem;
 use x86_64::structures::idt::InterruptStackFrame;
 use x86_64::structures::idt::{
@@ -7,9 +6,8 @@ use x86_64::structures::idt::{
 
 use crate::interrupt_idx::InterruptIndex;
 use crate::interrupts::PICS;
+use crate::klog;
 use crate::time;
-use crate::{klog, logging};
-use core::fmt::Write;
 use x86_64::registers::control::Cr2;
 
 static mut IDT: InterruptDescriptorTable = InterruptDescriptorTable::new();

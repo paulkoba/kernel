@@ -1,11 +1,10 @@
 use crate::fs::vfs;
 use crate::gdt::SELECTORS;
 use crate::instructions::{rdmsr, wrmsr, EFER, FMASK, KERNEL_GS_BASE, LSTAR, STAR};
+use crate::klog;
 use crate::task::{get_current_task, getpid, getppid, TrapFrame};
 use crate::types::FMode;
-use crate::{klog, logging, LogLevel};
 use core::arch::naked_asm;
-use core::fmt::Write;
 
 #[repr(align(16))]
 struct KernelStack([u8; 16384]);
@@ -238,16 +237,12 @@ fn sys_read(fd: u64, buf: u64, count: u64) -> u64 {
     }
 }
 
-// Open a file
-// sys_open(pathname, flags, mode)
 fn sys_open(pathname: u64, flags: u64, _mode: u64) -> u64 {
     let task = match get_current_task() {
         Some(t) => t,
         None => return u64::MAX,
     };
 
-    // Read the path string from userspace
-    // We need to find the null terminator first
     let mut path_len = 0;
     unsafe {
         let mut ptr = pathname as *const u8;
@@ -274,19 +269,16 @@ fn sys_open(pathname: u64, flags: u64, _mode: u64) -> u64 {
         flags
     );
 
-    // Resolve the path
     let dentry = vfs::resolve_path(path_str);
     if dentry.is_null() {
         klog!(Debug, "sys_open: path not found");
         return u64::MAX;
     }
 
-    // Convert flags to FMode (simplified - just check for O_RDONLY, O_WRONLY, O_RDWR)
-    // O_RDONLY = 0, O_WRONLY = 1, O_RDWR = 2
     let fmode = match flags & 3 {
-        0 => FMode::from(0o1), // Read only
-        1 => FMode::from(0o2), // Write only
-        2 => FMode::from(0o3), // Read/Write
+        0 => FMode::from(0o1),
+        1 => FMode::from(0o2),
+        2 => FMode::from(0o3),
         _ => FMode::from(0o1),
     };
 

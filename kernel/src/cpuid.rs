@@ -1,7 +1,5 @@
-use crate::LogLevel;
-use crate::{klog, logging};
+use crate::klog;
 use core::arch::x86_64::__cpuid_count;
-use core::fmt::Write;
 
 #[derive(Debug)]
 pub struct CpuInfo {

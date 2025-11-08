@@ -2,7 +2,8 @@ use crate::fs::file::File;
 use crate::memory::create_user_page_table_with_mapper;
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
-use x86_64::structures::paging::{FrameAllocator, OffsetPageTable, Size4KiB};
+use alloc::vec::Vec;
+use x86_64::structures::paging::{FrameAllocator, OffsetPageTable, PhysFrame, Size4KiB};
 use x86_64::VirtAddr;
 
 #[repr(C)]
@@ -36,6 +37,7 @@ pub struct Task {
     pub ppid: u64,
     pub trap_frame: *mut TrapFrame,
     pub page_table: OffsetPageTable<'static>,
+    pub phys_pages: Vec<PhysFrame>,
     pub file_descriptors: BTreeMap<u64, Box<File>>,
     pub next_fd: u64,
 }
@@ -53,6 +55,7 @@ impl Task {
             trap_frame: core::ptr::null_mut(),
             page_table: create_user_page_table_with_mapper(frame_allocator, physical_memory_offset)
                 .unwrap(),
+            phys_pages: Vec::new(),
             file_descriptors: BTreeMap::new(),
             next_fd: 3, // Start at 3 (0, 1, 2 are stdin, stdout, stderr)
         }

@@ -5,24 +5,24 @@ use crate::fs::ramfs::ramfs_super_operations;
 use crate::fs::super_block::SuperBlock;
 use crate::fs::vfs;
 use crate::fs::vfs::Filesystem;
+use crate::klog;
 use crate::types::{Dev, Gid, Mode, Uid};
-use crate::{klog, logging, LogLevel};
 use alloc::boxed::Box;
 use alloc::string::String;
-use core::fmt::Write;
 
 fn ramfs_mount(fs: &mut Filesystem, dev: u32, mount_point: &str) -> *mut Dentry {
     klog!(Debug, "Mounting ramfs with dev={}", dev);
+    let fs_static: &'static Filesystem = unsafe { core::mem::transmute(fs) };
 
-    // Create superblock
     let sb = Box::new(SuperBlock {
         s_dev: Dev::from(dev),
         s_root: core::ptr::null_mut(),
-        s_op: fs.super_operations,
+        s_op: Some(&ramfs_super_operations::RAMFS_SUPER_OPERATIONS),
+        s_fs: Some(fs_static),
     });
+
     let sb_ptr = Box::into_raw(sb);
 
-    // Create root inode (inode number 1 is reserved for root)
     let root_inode = Box::new(crate::fs::inode::Inode {
         i_ino: 1,
         i_count: 1,
@@ -38,50 +38,31 @@ fn ramfs_mount(fs: &mut Filesystem, dev: u32, mount_point: &str) -> *mut Dentry 
     });
     let root_inode_ptr = Box::into_raw(root_inode);
 
-    // Register root inode in the global inode list
     unsafe {
         crate::fs::vfs::INODES_LIST.insert(1, root_inode_ptr);
     }
 
-    // Create root dentry
-    let mut root_dentry = Box::new(Dentry {
+    let root_dentry = Box::new(Dentry {
         d_name: String::from(mount_point),
         d_inode: root_inode_ptr,
         d_sb: sb_ptr,
         d_op: None,
-        d_parent: core::ptr::null_mut(), // Root has no parent
+        d_parent: core::ptr::null_mut(),
         d_subdirs: alloc::collections::BTreeMap::new(),
     });
     let root_dentry_ptr = Box::into_raw(root_dentry);
 
-    // Link superblock to root dentry
     unsafe {
         (*sb_ptr).s_root = root_dentry_ptr;
-        // Link inode to dentry
         (*root_inode_ptr).i_dentry.push_back(root_dentry_ptr);
     }
-
-    // Note: The superblock is kept alive through the dentry's d_sb pointer
-    // We don't need to store it in the filesystem's list since it's managed by the dentry tree
-
     root_dentry_ptr
 }
 
 fn ramfs_kill_sb(sb: &mut SuperBlock) -> i32 {
-    use crate::{klog, logging, LogLevel};
     klog!(Debug, "Killing RAMFS superblock");
 
-    unsafe {
-        // The actual cleanup is done by free_dentry_tree in VFS
-        // This function is called before the tree is freed
-        // We can do any filesystem-specific cleanup here if needed
-
-        // For RAMFS, all data is freed when inodes are freed
-        // which happens in free_dentry_tree
-
-        // Clear the root pointer
-        sb.s_root = core::ptr::null_mut();
-    }
+    sb.s_root = core::ptr::null_mut();
 
     0
 }
@@ -91,7 +72,6 @@ pub fn init_ramfs() {
         name: "ramfs",
         mount: Some(ramfs_mount),
         kill_sb: Some(ramfs_kill_sb),
-        super_operations: Some(&ramfs_super_operations::RAMFS_SUPER_OPERATIONS),
         fs_supers: alloc::collections::LinkedList::new(),
     };
     vfs::register_filesystem(ramfs);

@@ -10,6 +10,7 @@ type WriteSuperFn = unsafe extern "C" fn(super_block: *mut SuperBlock);
 type StatfsFn = unsafe extern "C" fn(super_block: *mut SuperBlock, buf: *mut StatFs, bufsize: u32);
 type RemountFsFn =
     unsafe extern "C" fn(super_block: *mut SuperBlock, flags: *mut u32, data: *mut u8) -> u32;
+type DropInodeFn = unsafe extern "C" fn(inode: *mut Inode);
 
 pub struct SuperOperations {
     pub read_inode: Option<ReadInodeFn>,
@@ -19,4 +20,5 @@ pub struct SuperOperations {
     pub write_super: Option<WriteSuperFn>,
     pub statfs: Option<StatfsFn>,
     pub remount_fs: Option<RemountFsFn>,
+    pub drop_inode: Option<DropInodeFn>,
 }

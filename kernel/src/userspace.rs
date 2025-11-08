@@ -3,7 +3,9 @@ use crate::memory;
 use crate::memory::USERSPACE_CODE_START;
 use crate::task::Task;
 use core::arch::asm;
-use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB};
+use x86_64::structures::paging::{
+    FrameAllocator, Mapper, Page, PageTableFlags, PhysFrame, Size4KiB,
+};
 use x86_64::VirtAddr;
 
 pub fn jump_userspace(frame_allocator: &mut impl FrameAllocator<Size4KiB>, task: &mut Task) -> () {
@@ -14,6 +16,9 @@ pub fn jump_userspace(frame_allocator: &mut impl FrameAllocator<Size4KiB>, task:
     let user_code_frame = frame_allocator
         .allocate_frame()
         .expect("no more frames available");
+
+    task.phys_pages.push(PhysFrame::from(user_stack_frame));
+    task.phys_pages.push(PhysFrame::from(user_code_frame));
 
     let user_stack_flags = PageTableFlags::PRESENT
         | PageTableFlags::WRITABLE

@@ -3,7 +3,6 @@ use crate::fs::file::File;
 use crate::fs::inode::Inode;
 use crate::fs::ramfs::ramfs;
 use crate::fs::super_block::SuperBlock;
-use crate::fs::super_operations::SuperOperations;
 use crate::types::{FMode, Gid, Mode, Uid};
 use alloc::boxed::Box;
 use alloc::collections::{BTreeMap, LinkedList};
@@ -17,7 +16,6 @@ pub struct Filesystem {
     pub name: &'static str,
     pub mount: Option<MountFunc>,
     pub kill_sb: Option<KillSbFunc>,
-    pub super_operations: Option<&'static SuperOperations>,
     pub fs_supers: LinkedList<SuperBlock>,
 }
 
@@ -111,7 +109,7 @@ pub fn resolve_path(path: &str) -> *mut Dentry {
                 let inode_ref = &*dentry_ref.d_inode;
                 if let Some(inode_ops) = inode_ref.inode_operations {
                     // Try filesystem-specific lookup first
-                    if let Some(lookup_fn) = inode_ops.lookup {
+                    if let Some(_lookup_fn) = inode_ops.lookup {
                         // For now, we'll use the VFS lookup through d_subdirs
                         // Filesystem-specific lookup can be enhanced later
                     }
@@ -164,7 +162,7 @@ pub fn mkdir(parent: *mut Dentry, name: &str, mode: Mode, uid: Uid, gid: Gid) ->
             d_sb: parent_ref.d_sb,
             d_op: parent_ref.d_op,
             d_parent: parent,
-            d_subdirs: alloc::collections::BTreeMap::new(),
+            d_subdirs: BTreeMap::new(),
         });
 
         let new_dentry_ptr = Box::into_raw(new_dentry);
@@ -236,7 +234,7 @@ pub fn create_file(parent: *mut Dentry, name: &str, mode: Mode, uid: Uid, gid: G
             d_sb: parent_ref.d_sb,
             d_op: parent_ref.d_op,
             d_parent: parent,
-            d_subdirs: alloc::collections::BTreeMap::new(),
+            d_subdirs: BTreeMap::new(),
         });
 
         let new_dentry_ptr = Box::into_raw(new_dentry);
@@ -426,14 +424,8 @@ unsafe fn free_dentry_tree(dentry: *mut Dentry) {
         // Remove from global inode list
         INODES_LIST.remove(&inode_ref.i_ino);
 
-        // Free filesystem-specific data (for RAMFS)
-        use crate::fs::ramfs::ramfs_file_operations;
-        if let Some(file_ops) = inode_ref.file_operations {
-            if core::ptr::eq(file_ops, &ramfs_file_operations::RAMFS_FILE_OPERATIONS) {
-                use crate::fs::ramfs::ramfs_data;
-                ramfs_data::ramfs_remove_data(inode_ref.i_ino);
-            }
-        }
+        let super_ops = (*inode_ref.i_sb).s_op.unwrap();
+        super_ops.drop_inode.unwrap()(inode);
 
         // Free the inode
         let _ = Box::from_raw(inode);
@@ -508,25 +500,13 @@ pub fn unmount_filesystem(root_dentry: *mut Dentry) -> i32 {
             return -1;
         }
 
-        let sb = dentry_ref.d_sb;
-        let sb_ref = &mut *sb;
-
         // Call filesystem-specific kill_sb if available
         // Find the filesystem by checking the root dentry's inode
         if !dentry_ref.d_inode.is_null() {
             let inode_ref = &*dentry_ref.d_inode;
-            // Check if it's RAMFS
-            use crate::fs::ramfs::ramfs_file_operations;
-            if let Some(file_ops) = inode_ref.file_operations {
-                if core::ptr::eq(file_ops, &ramfs_file_operations::RAMFS_FILE_OPERATIONS) {
-                    // Call RAMFS kill_sb
-                    if let Some(fs) = get_filesystem_by_name("ramfs") {
-                        if let Some(kill_sb_fn) = fs.kill_sb {
-                            kill_sb_fn(&mut *sb);
-                        }
-                    }
-                }
-            }
+
+            let s_ops = (*inode_ref.i_sb).s_op.unwrap();
+            s_ops.put_super.unwrap()(inode_ref.i_sb);
         }
 
         // Free the entire dentry tree (this will free all inodes, dentries, and data)
